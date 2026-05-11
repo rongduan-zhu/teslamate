@@ -1,0 +1,22 @@
+[
+  {
+    "id": 1001,
+    "startDate": "2026-05-01T08:10:00Z",
+    "endDate": "2026-05-01T08:45:00Z",
+    "startAddress": "1 Market St, San Francisco, CA",
+    "endAddress": "500 Howard St, San Francisco, CA",
+    "distanceKm": 22.4,
+    "notes": "",
+    "tags": []
+  },
+  {
+    "id": 1002,
+    "startDate": "2026-05-03T18:00:00Z",
+    "endDate": "2026-05-03T18:27:00Z",
+    "startAddress": "San Jose, CA",
+    "endAddress": "Palo Alto, CA",
+    "distanceKm": 31.2,
+    "notes": "Traffic was light",
+    "tags": ["commute"]
+  }
+]
