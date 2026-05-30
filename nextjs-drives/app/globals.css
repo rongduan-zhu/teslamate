@@ -61,6 +61,9 @@ h1 {
 }
 
 .filters {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: grid;
   grid-template-columns: minmax(220px, 340px);
   gap: 12px;
@@ -70,6 +73,7 @@ h1 {
   border: 1px solid #d8dee8;
   border-radius: 8px;
   background: #f8fafc;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
 }
 
 .filterControl {
@@ -376,6 +380,39 @@ h1 {
   margin: 0;
   padding: 24px;
   color: #64748b;
+}
+
+.scrollSentinel {
+  width: 100%;
+  height: 1px;
+}
+
+.loadState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 40px;
+  margin: 10px 0 0;
+  color: #64748b;
+  text-align: center;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.loadState.error {
+  color: #b91c1c;
+}
+
+.loadState button {
+  min-height: 32px;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  padding: 5px 10px;
+  color: #991b1b;
+  background: #fff;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 @media (max-width: 900px) {

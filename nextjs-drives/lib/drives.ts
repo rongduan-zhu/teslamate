@@ -28,8 +28,17 @@ export const DriveSchema = z.object({
 
 export type Drive = z.infer<typeof DriveSchema>;
 
+export const PaginationSchema = z.object({
+  page: z.number().int().positive(),
+  perPage: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+  totalPages: z.number().int().positive(),
+});
+
 const DrivesResponseSchema = z.object({
   drives: z.array(DriveSchema),
+  cars: z.array(z.string()).default([]),
+  pagination: PaginationSchema,
 });
 
 const DriveResponseSchema = z.object({
@@ -45,8 +54,23 @@ const apiBaseUrl = (process.env.TESLAMATE_API_URL ?? "http://localhost:4000/api"
   ""
 );
 
-export async function listDrives(): Promise<Drive[]> {
-  const response = await fetch(`${apiBaseUrl}/drives`, {
+export type DrivesPage = z.infer<typeof DrivesResponseSchema>;
+
+export type ListDrivesParams = {
+  page?: number;
+  perPage?: number;
+  car?: string;
+};
+
+export async function listDrives(params: ListDrivesParams = {}): Promise<DrivesPage> {
+  const searchParams = new URLSearchParams();
+
+  if (params.page) searchParams.set("page", String(params.page));
+  if (params.perPage) searchParams.set("perPage", String(params.perPage));
+  if (params.car) searchParams.set("car", params.car);
+
+  const queryString = searchParams.toString();
+  const response = await fetch(`${apiBaseUrl}/drives${queryString ? `?${queryString}` : ""}`, {
     headers: { accept: "application/json" },
     cache: "no-store",
   });
@@ -55,7 +79,7 @@ export async function listDrives(): Promise<Drive[]> {
     throw new Error(`TeslaMate API returned ${response.status} while listing drives`);
   }
 
-  return DrivesResponseSchema.parse(await response.json()).drives;
+  return DrivesResponseSchema.parse(await response.json());
 }
 
 export async function updateDriveMeta(

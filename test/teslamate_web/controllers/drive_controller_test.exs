@@ -47,15 +47,18 @@ defmodule TeslaMateWeb.DriveControllerTest do
     drive |> Repo.preload(:positions)
   end
 
-  defp completed_drive_fixture(car) do
+  defp completed_drive_fixture(car, attrs \\ %{}) do
     {:ok, drive} = Log.start_drive(car)
 
     {:ok, drive} =
-      Log.update_drive(drive, %{
-        end_date: DateTime.utc_now(),
-        distance: 12.3,
-        notes: "Initial note"
-      })
+      Log.update_drive(
+        drive,
+        Enum.into(attrs, %{
+          end_date: DateTime.utc_now(),
+          distance: 12.3,
+          notes: "Initial note"
+        })
+      )
 
     drive
   end
@@ -80,6 +83,44 @@ defmodule TeslaMateWeb.DriveControllerTest do
              } = json_response(conn, 200)
 
       assert id == drive.id
+    end
+
+    test "paginates completed drives", %{conn: conn} do
+      car = car_fixture()
+
+      oldest =
+        completed_drive_fixture(car, %{
+          end_date: ~U[2026-01-01 00:10:00Z],
+          start_date: ~U[2026-01-01 00:00:00Z]
+        })
+
+      middle =
+        completed_drive_fixture(car, %{
+          end_date: ~U[2026-01-02 00:10:00Z],
+          start_date: ~U[2026-01-02 00:00:00Z]
+        })
+
+      newest =
+        completed_drive_fixture(car, %{
+          end_date: ~U[2026-01-03 00:10:00Z],
+          start_date: ~U[2026-01-03 00:00:00Z]
+        })
+
+      conn = get(conn, "/api/drives", %{"page" => "2", "perPage" => "1"})
+
+      assert %{
+               "drives" => [%{"id" => id}],
+               "pagination" => %{
+                 "page" => 2,
+                 "perPage" => 1,
+                 "total" => 3,
+                 "totalPages" => 3
+               }
+             } = json_response(conn, 200)
+
+      assert id == middle.id
+      assert newest.id != id
+      assert oldest.id != id
     end
   end
 

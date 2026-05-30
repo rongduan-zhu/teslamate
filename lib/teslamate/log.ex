@@ -246,6 +246,43 @@ defmodule TeslaMate.Log do
     |> Repo.all()
   end
 
+  def list_completed_drives_page(opts \\ []) do
+    page = opts |> Keyword.get(:page, 1) |> max(1)
+    per_page = opts |> Keyword.get(:per_page, 50) |> min(100) |> max(1)
+
+    base_query =
+      Drive
+      |> where([d], not is_nil(d.end_date))
+      |> filter_by_car(Keyword.get(opts, :car))
+
+    total = Repo.aggregate(base_query, :count, :id)
+    total_pages = if total == 0, do: 1, else: ceil(total / per_page)
+    page = min(page, total_pages)
+
+    entries =
+      base_query
+      |> preload([:car, :start_address, :end_address, :tags])
+      |> order_by(desc: :start_date)
+      |> limit(^per_page)
+      |> offset(^((page - 1) * per_page))
+      |> Repo.all()
+
+    %{entries: entries, page: page, per_page: per_page, total: total, total_pages: total_pages}
+  end
+
+  def list_completed_drive_car_names do
+    Drive
+    |> where([d], not is_nil(d.end_date))
+    |> join(:inner, [d], c in assoc(d, :car))
+    |> select([_d, c], {c.name, c.marketing_name, c.model})
+    |> distinct(true)
+    |> Repo.all()
+    |> Enum.map(fn {name, marketing_name, model} -> name || marketing_name || model || "" end)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
   def get_drive(id) do
     Drive
     |> preload([:car, :start_address, :end_address, :tags])
@@ -302,6 +339,15 @@ defmodule TeslaMate.Log do
 
   def delete_drive(%Drive{} = drive) do
     Repo.delete(drive)
+  end
+
+  defp filter_by_car(query, nil), do: query
+  defp filter_by_car(query, ""), do: query
+
+  defp filter_by_car(query, car_name) when is_binary(car_name) do
+    from d in query,
+      join: c in assoc(d, :car),
+      where: c.name == ^car_name or c.marketing_name == ^car_name or c.model == ^car_name
   end
 
   def start_drive(%Car{id: id}) do

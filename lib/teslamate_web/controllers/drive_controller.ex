@@ -10,8 +10,34 @@ defmodule TeslaMateWeb.DriveController do
 
   action_fallback TeslaMateWeb.FallbackController
 
-  def index(conn, _params) do
-    render(conn, "index.json", drives: Log.list_completed_drives())
+  @default_page 1
+  @default_per_page 25
+  @max_per_page 100
+
+  def index(conn, params) do
+    page =
+      params
+      |> Map.get("page")
+      |> parse_positive_integer(@default_page)
+
+    per_page =
+      params
+      |> Map.get("perPage", Map.get(params, "per_page"))
+      |> parse_positive_integer(@default_per_page)
+      |> min(@max_per_page)
+
+    result =
+      Log.list_completed_drives_page(
+        page: page,
+        per_page: per_page,
+        car: Map.get(params, "car")
+      )
+
+    render(conn, "index.json",
+      drives: result.entries,
+      pagination: result,
+      cars: Log.list_completed_drive_car_names()
+    )
   end
 
   def tags(conn, _params) do
@@ -57,6 +83,16 @@ defmodule TeslaMateWeb.DriveController do
     end)
     |> Map.new()
   end
+
+  defp parse_positive_integer(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {integer, ""} when integer > 0 -> integer
+      _ -> default
+    end
+  end
+
+  defp parse_positive_integer(value, _default) when is_integer(value) and value > 0, do: value
+  defp parse_positive_integer(_value, default), do: default
 
   defp send_gpx_file(conn, drive) do
     filename = "#{drive.start_date}.gpx"

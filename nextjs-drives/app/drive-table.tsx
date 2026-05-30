@@ -1,32 +1,132 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import type { Drive } from "@/lib/drives";
+import type { Drive, DrivesPage } from "@/lib/drives";
 
 export function DriveTable({
-  initialDrives,
+  initialDrivesPage,
   initialTags,
 }: {
-  initialDrives: Drive[];
+  initialDrivesPage: DrivesPage;
   initialTags: string[];
 }) {
-  const [drives, setDrives] = useState(initialDrives);
+  const [drives, setDrives] = useState(initialDrivesPage.drives);
+  const [pagination, setPagination] = useState(initialDrivesPage.pagination);
+  const [cars, setCars] = useState(initialDrivesPage.cars);
   const [tags, setTags] = useState(initialTags);
   const [carFilter, setCarFilter] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const didMountFilter = useRef(false);
+  const isLoadingRef = useRef(false);
+  const requestSeq = useRef(0);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const perPage = initialDrivesPage.pagination.perPage;
 
-  const cars = useMemo(() => {
-    return Array.from(new Set(drives.map((drive) => drive.car).filter(Boolean))).sort();
-  }, [drives]);
+  const loadDrives = useCallback(
+    async (pageToLoad: number, mode: "replace" | "append") => {
+      if (mode === "append" && isLoadingRef.current) return;
 
-  const filteredDrives = useMemo(() => {
-    if (!carFilter) return drives;
-    return drives.filter((drive) => drive.car === carFilter);
-  }, [carFilter, drives]);
+      const requestId = requestSeq.current + 1;
+      requestSeq.current = requestId;
+      isLoadingRef.current = true;
+      setIsLoading(true);
+      setLoadError("");
+
+      const searchParams = new URLSearchParams({
+        page: String(pageToLoad),
+        perPage: String(perPage),
+      });
+
+      if (carFilter) searchParams.set("car", carFilter);
+
+      try {
+        const response = await fetch(`/api/drives?${searchParams.toString()}`, {
+          headers: { accept: "application/json" },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Could not load drives (${response.status})`);
+        }
+
+        const body = (await response.json()) as DrivesPage;
+        if (requestId !== requestSeq.current) return;
+
+        setPagination(body.pagination);
+        setCars(body.cars);
+        setDrives((current) => {
+          if (mode === "replace") return body.drives;
+
+          const seen = new Set(current.map((drive) => drive.id));
+          return [...current, ...body.drives.filter((drive) => !seen.has(drive.id))];
+        });
+      } catch (error) {
+        if (requestId !== requestSeq.current) return;
+        setLoadError(error instanceof Error ? error.message : "Could not load drives");
+      } finally {
+        if (requestId === requestSeq.current) {
+          isLoadingRef.current = false;
+          setIsLoading(false);
+        }
+      }
+    },
+    [carFilter, perPage]
+  );
+
+  useEffect(() => {
+    if (!didMountFilter.current) {
+      didMountFilter.current = true;
+      return;
+    }
+
+    setDrives([]);
+    setPagination({ page: 1, perPage, total: 0, totalPages: 1 });
+    void loadDrives(1, "replace");
+  }, [carFilter, loadDrives, perPage]);
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || pagination.page >= pagination.totalPages) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          void loadDrives(pagination.page + 1, "append");
+        }
+      },
+      { rootMargin: "640px 0px" }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [loadDrives, pagination.page, pagination.totalPages]);
+
+  useEffect(() => {
+    if (pagination.page >= pagination.totalPages) return;
+
+    const loadIfPageIsShort = () => {
+      const node = sentinelRef.current;
+      if (!node || isLoadingRef.current) return;
+
+      if (node.getBoundingClientRect().top <= window.innerHeight + 160) {
+        void loadDrives(pagination.page + 1, "append");
+      }
+    };
+
+    loadIfPageIsShort();
+    const animationFrame = window.requestAnimationFrame(loadIfPageIsShort);
+
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [drives.length, loadDrives, pagination.page, pagination.totalPages]);
 
   function updateDrive(drive: Drive) {
     setDrives((current) => current.map((item) => (item.id === drive.id ? drive : item)));
     setTags((current) => Array.from(new Set([...current, ...drive.tags])).sort());
+  }
+
+  function setCar(value: string) {
+    setCarFilter(value);
   }
 
   return (
@@ -37,8 +137,10 @@ export function DriveTable({
           <h1>Drives</h1>
         </div>
         <div className="summary">
-          <strong>{filteredDrives.length}</strong>
-          <span>of {drives.length} drives</span>
+          <strong>{pagination.total}</strong>
+          <span>
+            {drives.length} loaded{carFilter ? ` for ${carFilter}` : ""}
+          </span>
         </div>
       </header>
 
@@ -46,7 +148,7 @@ export function DriveTable({
         <label className="filterControl">
           <span>Car</span>
           <div className="selectWrap">
-            <select value={carFilter} onChange={(event) => setCarFilter(event.target.value)}>
+            <select value={carFilter} onChange={(event) => setCar(event.target.value)}>
               <option value="">All cars</option>
               {cars.map((car) => (
                 <option key={car} value={car}>
@@ -69,7 +171,7 @@ export function DriveTable({
           <span>Distance</span>
           <span>Notes & tags</span>
         </div>
-        {filteredDrives.map((drive) => (
+        {drives.map((drive) => (
           <DriveRow
             key={drive.id}
             allTags={tags}
@@ -77,8 +179,27 @@ export function DriveTable({
             onUpdate={updateDrive}
           />
         ))}
-        {filteredDrives.length === 0 ? <p className="empty">No drives match this car.</p> : null}
+        {drives.length === 0 ? <p className="empty">No drives match this car.</p> : null}
       </section>
+
+      <div ref={sentinelRef} className="scrollSentinel" aria-hidden="true" />
+      {isLoading ? <p className="loadState">Loading more drives...</p> : null}
+      {!isLoading && drives.length > 0 && pagination.page >= pagination.totalPages ? (
+        <p className="loadState">All drives loaded.</p>
+      ) : null}
+      {loadError ? (
+        <div className="loadState error">
+          <span>{loadError}</span>
+          <button
+            type="button"
+            onClick={() =>
+              void loadDrives(drives.length > 0 ? pagination.page + 1 : 1, drives.length > 0 ? "append" : "replace")
+            }
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
     </main>
   );
 }

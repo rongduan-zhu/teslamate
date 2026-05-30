@@ -1,8 +1,17 @@
 defmodule TeslaMateWeb.DriveView do
   use TeslaMateWeb, :view
 
-  def render("index.json", %{drives: drives}) do
-    %{drives: Enum.map(drives, &drive_json/1)}
+  def render("index.json", %{drives: drives, pagination: pagination, cars: cars}) do
+    %{
+      drives: Enum.map(drives, &drive_json/1),
+      cars: cars,
+      pagination: %{
+        page: pagination.page,
+        perPage: pagination.per_page,
+        total: pagination.total,
+        totalPages: pagination.total_pages
+      }
+    }
   end
 
   def render("show.json", %{drive: drive}) do
