@@ -1,13 +1,18 @@
 services:
   teslamate:
-    image: teslamate/teslamate:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: teslamate/teslamate:local
     restart: always
     environment:
       - ENCRYPTION_KEY=MQwgm91uuWkoUYkt6+lwRKf2wiFmpED326+NVwlaI4Y=
-      - DATABASE_USER=teslamate
-      - DATABASE_PASS=J_\+8ot264M2
-      - DATABASE_NAME=teslamate
-      - DATABASE_HOST=database
+      - DATABASE_USER=neondb_owner
+      - DATABASE_PASS=npg_3beDsc7inJHx
+      - DATABASE_NAME=neondb
+      - DATABASE_HOST=ep-super-dawn-af3eu8d5-pooler.c-2.us-west-2.aws.neon.tech
+      - DATABASE_SSL=noverify
+      - DATABASE_SSL_SNI=ep-super-dawn-af3eu8d5-pooler.c-2.us-west-2.aws.neon.tech
       - MQTT_HOST=mosquitto
     ports:
       - 4000:4000
@@ -16,28 +21,37 @@ services:
     cap_drop:
       - all
 
-  database:
-    image: postgres:17-trixie
-    restart: always
-    environment:
-      - POSTGRES_USER=teslamate
-      - POSTGRES_PASSWORD=J_\+8ot264M2
-      - POSTGRES_DB=teslamate
-    volumes:
-      - teslamate-db:/var/lib/postgresql/data
-
   grafana:
     image: teslamate/grafana:latest
     restart: always
     environment:
-      - DATABASE_USER=teslamate
-      - DATABASE_PASS=J_\+8ot264M2
-      - DATABASE_NAME=teslamate
-      - DATABASE_HOST=database
+      - DATABASE_USER=neondb_owner
+      - DATABASE_PASS=npg_3beDsc7inJHx
+      - DATABASE_NAME=neondb
+      - DATABASE_HOST=ep-super-dawn-af3eu8d5-pooler.c-2.us-west-2.aws.neon.tech
+      - DATABASE_SSL_MODE=require
+      - DATABASE_SSL_SNI=ep-super-dawn-af3eu8d5-pooler.c-2.us-west-2.aws.neon.tech
     ports:
       - 3000:3000
     volumes:
       - teslamate-grafana-data:/var/lib/grafana
+      - ./grafana-datasource-override.yml:/etc/grafana/provisioning/datasources/datasource.yml
+
+  nextjs-drives:
+    image: node:22-alpine
+    restart: always
+    working_dir: /app
+    environment:
+      - TESLAMATE_API_URL=http://teslamate:4000/api
+      - NEXT_TELEMETRY_DISABLED=1
+    command: sh -c "npm install --no-package-lock && npm run dev -- -H 0.0.0.0"
+    ports:
+      - 3001:3000
+    volumes:
+      - ./nextjs-drives:/app
+      - nextjs-drives-node-modules:/app/node_modules
+    depends_on:
+      - teslamate
 
   mosquitto:
     image: eclipse-mosquitto:2
@@ -50,7 +64,8 @@ services:
       - mosquitto-data:/mosquitto/data
 
 volumes:
-  teslamate-db:
+  # teslamate-db:
   teslamate-grafana-data:
+  nextjs-drives-node-modules:
   mosquitto-conf:
   mosquitto-data:

@@ -270,6 +270,36 @@ defmodule TeslaMate.Log do
     |> Repo.update()
   end
 
+  def update_drive_meta(%Drive{} = drive, attrs) do
+    Repo.transaction(fn ->
+      drive =
+        case update_drive(drive, Map.take(attrs, [:notes])) do
+          {:ok, drive} -> drive
+          {:error, changeset} -> Repo.rollback(changeset)
+        end
+
+      case Map.fetch(attrs, :tags) do
+        {:ok, tag_names} when is_list(tag_names) ->
+          tags = Enum.map(clean_tag_names(tag_names), &get_or_create_tag!/1)
+
+          from(dt in DriveTag, where: dt.drive_id == ^drive.id)
+          |> Repo.delete_all()
+
+          Enum.each(tags, fn tag ->
+            case add_tag_to_drive(drive, tag) do
+              {:ok, _drive_tag} -> :ok
+              {:error, changeset} -> Repo.rollback(changeset)
+            end
+          end)
+
+          get_drive!(drive.id)
+
+        _ ->
+          get_drive!(drive.id)
+      end
+    end)
+  end
+
   def delete_drive(%Drive{} = drive) do
     Repo.delete(drive)
   end
@@ -300,6 +330,21 @@ defmodule TeslaMate.Log do
     %Tag{}
     |> Tag.changeset(attrs)
     |> Repo.insert()
+  end
+
+  defp clean_tag_names(tag_names) do
+    tag_names
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  defp get_or_create_tag!(name) do
+    Repo.get_by(Tag, name: name) ||
+      case create_tag(%{name: name}) do
+        {:ok, tag} -> tag
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
   end
 
   def update_tag(%Tag{} = tag, attrs) do
@@ -340,6 +385,7 @@ defmodule TeslaMate.Log do
     case drive_tag do
       nil ->
         {:error, :not_found}
+
       drive_tag ->
         Repo.delete(drive_tag)
     end

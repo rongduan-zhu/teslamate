@@ -1,13 +1,26 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
 import { z } from "zod";
 
 export const DriveSchema = z.object({
   id: z.number().int().positive(),
-  startDate: z.string(),
-  endDate: z.string(),
+  car: z.string().default(""),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
   startAddress: z.string(),
   endAddress: z.string(),
+  startLocation: z
+    .object({
+      latitude: z.number(),
+      longitude: z.number(),
+    })
+    .nullable()
+    .default(null),
+  endLocation: z
+    .object({
+      latitude: z.number(),
+      longitude: z.number(),
+    })
+    .nullable()
+    .default(null),
   distanceKm: z.number(),
   notes: z.string().default(""),
   tags: z.array(z.string()).default([]),
@@ -15,30 +28,70 @@ export const DriveSchema = z.object({
 
 export type Drive = z.infer<typeof DriveSchema>;
 
-const drivesFile = path.join(process.cwd(), "lib", "drives.seed.json");
+const DrivesResponseSchema = z.object({
+  drives: z.array(DriveSchema),
+});
+
+const DriveResponseSchema = z.object({
+  drive: DriveSchema,
+});
+
+const TagsResponseSchema = z.object({
+  tags: z.array(z.string()),
+});
+
+const apiBaseUrl = (process.env.TESLAMATE_API_URL ?? "http://localhost:4000/api").replace(
+  /\/+$/,
+  ""
+);
 
 export async function listDrives(): Promise<Drive[]> {
-  const content = await fs.readFile(drivesFile, "utf8");
-  return z.array(DriveSchema).parse(JSON.parse(content));
+  const response = await fetch(`${apiBaseUrl}/drives`, {
+    headers: { accept: "application/json" },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`TeslaMate API returned ${response.status} while listing drives`);
+  }
+
+  return DrivesResponseSchema.parse(await response.json()).drives;
 }
 
 export async function updateDriveMeta(
   id: number,
   params: { notes?: string; tags?: string[] }
 ): Promise<Drive | null> {
-  const drives = await listDrives();
-  const idx = drives.findIndex((d) => d.id === id);
-  if (idx < 0) return null;
+  const response = await fetch(`${apiBaseUrl}/drives/${id}`, {
+    method: "PATCH",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(params),
+    cache: "no-store",
+  });
 
-  const current = drives[idx];
-  drives[idx] = {
-    ...current,
-    notes: params.notes ?? current.notes,
-    tags: params.tags ?? current.tags,
-  };
+  if (response.status === 404) return null;
 
-  await fs.writeFile(drivesFile, JSON.stringify(drives, null, 2) + "\n", "utf8");
-  return drives[idx];
+  if (!response.ok) {
+    throw new Error(`TeslaMate API returned ${response.status} while updating drive ${id}`);
+  }
+
+  return DriveResponseSchema.parse(await response.json()).drive;
+}
+
+export async function listTags(): Promise<string[]> {
+  const response = await fetch(`${apiBaseUrl}/tags`, {
+    headers: { accept: "application/json" },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`TeslaMate API returned ${response.status} while listing tags`);
+  }
+
+  return TagsResponseSchema.parse(await response.json()).tags;
 }
 
 export const UpdatePayloadSchema = z.object({

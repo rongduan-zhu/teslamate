@@ -47,6 +47,70 @@ defmodule TeslaMateWeb.DriveControllerTest do
     drive |> Repo.preload(:positions)
   end
 
+  defp completed_drive_fixture(car) do
+    {:ok, drive} = Log.start_drive(car)
+
+    {:ok, drive} =
+      Log.update_drive(drive, %{
+        end_date: DateTime.utc_now(),
+        distance: 12.3,
+        notes: "Initial note"
+      })
+
+    drive
+  end
+
+  describe "GET /api/drives" do
+    test "lists completed drives as JSON", %{conn: conn} do
+      drive = completed_drive_fixture(car_fixture())
+      {:ok, tag} = Log.create_tag(%{name: "commute"})
+      {:ok, _drive_tag} = Log.add_tag_to_drive(drive, tag)
+
+      conn = get(conn, "/api/drives")
+
+      assert %{
+               "drives" => [
+                 %{
+                   "id" => id,
+                   "distanceKm" => 12.3,
+                   "notes" => "Initial note",
+                   "tags" => ["commute"]
+                 }
+               ]
+             } = json_response(conn, 200)
+
+      assert id == drive.id
+    end
+  end
+
+  describe "PATCH /api/drives/:id" do
+    test "updates drive notes and tags", %{conn: conn} do
+      drive = completed_drive_fixture(car_fixture())
+
+      conn =
+        patch(conn, "/api/drives/#{drive.id}", %{
+          "notes" => "Updated from Next",
+          "tags" => ["road trip", "family"]
+        })
+
+      assert %{
+               "drive" => %{
+                 "id" => id,
+                 "notes" => "Updated from Next",
+                 "tags" => ["family", "road trip"]
+               }
+             } = json_response(conn, 200)
+
+      assert id == drive.id
+    end
+
+    test "returns 404 when the drive does not exist", %{conn: conn} do
+      conn = patch(conn, "/api/drives/999999", %{"notes" => "Nope"})
+
+      assert %{"error" => "Drive not found"} = json_response(conn, 404)
+    end
+  end
+
   describe "GET /drive/:id/gpx" do
     test "sets xml and content-disposition headers", %{conn: conn} do
       drive = drive_fixture(car_fixture())
