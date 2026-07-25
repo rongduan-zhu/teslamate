@@ -1,13 +1,13 @@
-FROM elixir:1.17.3-otp-26 AS builder
+FROM elixir:1.19.5-otp-28 AS builder
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN apt-get update \
-    && apt-get install -y ca-certificates curl gnupg \
+    && apt-get install -y ca-certificates curl gnupg brotli \
     && mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
      | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
-    && NODE_MAJOR=20 \
+    && NODE_MAJOR=22 \
     && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" \
      | tee /etc/apt/sources.list.d/nodesource.list \
     && apt-get update \
@@ -47,7 +47,7 @@ RUN SKIP_LOCALE_DOWNLOAD=true mix release --path /opt/built
 
 ########################################################################
 
-FROM debian:bookworm-slim AS app
+FROM debian:trixie-slim AS app
 
 ENV LANG=C.UTF-8 \
     SRTM_CACHE=/opt/app/.srtm_cache \
@@ -56,17 +56,17 @@ ENV LANG=C.UTF-8 \
 WORKDIR $HOME
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libodbc1  \
+        libodbc2  \
         libsctp1  \
-        libssl3  \
+        libssl3t64  \
         libstdc++6 \
         netcat-openbsd \
         tini  \
         tzdata && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
-    addgroup --gid 10001 --system nonroot && \
-    adduser  --uid 10000 --system --ingroup nonroot --home /home/nonroot nonroot && \
+    groupadd --gid 10001 --system nonroot && \
+    useradd  --uid 10000 --system --gid nonroot --home-dir /home/nonroot --shell /sbin/nologin nonroot && \
     chown -R nonroot:nonroot .
 
 USER nonroot:nonroot
@@ -76,5 +76,5 @@ RUN mkdir $SRTM_CACHE
 
 EXPOSE 4000
 
-ENTRYPOINT ["tini", "--", "/bin/sh", "/entrypoint.sh"]
+ENTRYPOINT ["tini", "--", "/bin/dash", "/entrypoint.sh"]
 CMD ["bin/teslamate", "start"]

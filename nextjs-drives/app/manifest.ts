@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "TeslaMate Drives",
-    short_name: "Drives",
-    description: "Review TeslaMate drives and update notes and tags.",
+    name: "Home Server",
+    short_name: "Home",
+    description: "Private home server launchpad and API gateway.",
     start_url: "/",
     scope: "/",
     display: "standalone",

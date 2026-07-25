@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import Link from "next/link";
 import type { Drive, DrivesPage } from "@/lib/drives";
 
 export function DriveTable({
@@ -18,6 +19,7 @@ export function DriveTable({
   const [carFilter, setCarFilter] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [automatedDriveIds, setAutomatedDriveIds] = useState<Set<number>>(new Set());
   const didMountFilter = useRef(false);
   const isLoadingRef = useRef(false);
   const requestSeq = useRef(0);
@@ -73,6 +75,23 @@ export function DriveTable({
     },
     [carFilter, perPage]
   );
+
+  useEffect(() => {
+    async function loadAutomationMarkers() {
+      try {
+        const response = await fetch("/api/automation/markers", { headers: { accept: "application/json" } });
+        if (!response.ok) return;
+        const body = (await response.json()) as { driveIds: number[] };
+        setAutomatedDriveIds(new Set(body.driveIds));
+      } catch {
+        // Drive browsing and editing remain available if the local activity log is unavailable.
+      }
+    }
+
+    void loadAutomationMarkers();
+    const timer = window.setInterval(loadAutomationMarkers, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!didMountFilter.current) {
@@ -133,6 +152,7 @@ export function DriveTable({
     <main className="shell">
       <header className="topbar">
         <div>
+          <Link className="backLink" href="/">← Home server</Link>
           <p className="eyebrow">TeslaMate</p>
           <h1>Drives</h1>
         </div>
@@ -175,6 +195,7 @@ export function DriveTable({
           <DriveRow
             key={drive.id}
             allTags={tags}
+            automated={automatedDriveIds.has(drive.id) || drive.tags.includes("toggl")}
             drive={drive}
             onUpdate={updateDrive}
           />
@@ -206,10 +227,12 @@ export function DriveTable({
 
 function DriveRow({
   allTags,
+  automated,
   drive,
   onUpdate,
 }: {
   allTags: string[];
+  automated: boolean;
   drive: Drive;
   onUpdate: (drive: Drive) => void;
 }) {
@@ -239,10 +262,13 @@ function DriveRow({
   }
 
   const summary = (
-    <div className="mobileSummary">
+    <span className="mobileSummary">
       <LazyMiniRouteMap drive={drive} />
-      <div className="mobileSummaryMain">
-        <strong>#{drive.id}</strong>
+      <span className="mobileSummaryMain">
+        <span className="mobileDriveId">
+          <strong>#{drive.id}</strong>
+          {automated ? <AutomationBadge /> : null}
+        </span>
         <span>{drive.car || "Unknown car"}</span>
         <span>{formatShortDateTime(drive.startDate)}</span>
         <span>{drive.distanceKm.toFixed(1)} km</span>
@@ -253,8 +279,8 @@ function DriveRow({
             ))}
           </span>
         ) : null}
-      </div>
-    </div>
+      </span>
+    </span>
   );
 
   return (
@@ -277,6 +303,7 @@ function DriveRow({
         <Cell label="Distance">{drive.distanceKm.toFixed(1)} km</Cell>
         <DriveEditor
           allTags={allTags}
+          automated={automated}
           driveId={drive.id}
           notes={notes}
           selectedTags={selectedTags}
@@ -298,6 +325,7 @@ function DriveRow({
 
 function DriveEditor({
   allTags,
+  automated,
   driveId,
   notes,
   selectedTags,
@@ -307,6 +335,7 @@ function DriveEditor({
   onSave,
 }: {
   allTags: string[];
+  automated: boolean;
   driveId: number;
   notes: string;
   selectedTags: string[];
@@ -317,6 +346,7 @@ function DriveEditor({
 }) {
   return (
     <div className="editor">
+      {automated ? <AutomationBadge /> : null}
       <textarea
         aria-label={`Notes for drive ${driveId}`}
         value={notes}
@@ -364,6 +394,17 @@ function DriveEditor({
         <span className={`status ${status}`}>{statusLabel(status)}</span>
       </div>
     </div>
+  );
+}
+
+function AutomationBadge() {
+  return (
+    <span className="togglAutomationBadge" role="img" aria-label="Added by Toggl automation" title="Notes and tags added by Toggl automation">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="8" />
+        <path d="M12 7v5l3 2M9 3h6" />
+      </svg>
+    </span>
   );
 }
 

@@ -44,6 +44,13 @@ defmodule TeslaMateWeb.DriveController do
     render(conn, "tags.json", tags: Log.list_tags())
   end
 
+  def show(conn, %{"id" => id}) do
+    case Log.get_drive(id) do
+      %Drive{} = drive -> render(conn, "show.json", drive: drive)
+      nil -> conn |> put_status(:not_found) |> render("error.json", message: "Drive not found")
+    end
+  end
+
   def update(conn, %{"id" => id} = params) do
     with %Drive{} = drive <- Log.get_drive(id),
          {:ok, drive} <- Log.update_drive_meta(drive, drive_meta_params(params)) do

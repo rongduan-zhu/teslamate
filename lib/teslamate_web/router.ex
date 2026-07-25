@@ -53,6 +53,7 @@ defmodule TeslaMateWeb.Router do
     pipe_through :api
 
     get "/drives", DriveController, :index
+    get "/drives/:id", DriveController, :show
     patch "/drives/:id", DriveController, :update
     get "/tags", DriveController, :tags
     put "/car/:id/logging/resume", CarController, :resume_logging

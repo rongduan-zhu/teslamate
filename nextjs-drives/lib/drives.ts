@@ -105,6 +105,20 @@ export async function updateDriveMeta(
   return DriveResponseSchema.parse(await response.json()).drive;
 }
 
+export async function getDrive(id: number): Promise<Drive | null> {
+  const response = await fetch(`${apiBaseUrl}/drives/${id}`, {
+    headers: { accept: "application/json" },
+    cache: "no-store",
+  });
+
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(`TeslaMate API returned ${response.status} while loading drive ${id}`);
+  }
+
+  return DriveResponseSchema.parse(await response.json()).drive;
+}
+
 export async function listTags(): Promise<string[]> {
   const response = await fetch(`${apiBaseUrl}/tags`, {
     headers: { accept: "application/json" },

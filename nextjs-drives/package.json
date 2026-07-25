@@ -9,6 +9,7 @@
     "test": "node --test"
   },
   "dependencies": {
+    "@openai/codex-sdk": "0.144.6",
     "next": "16.0.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",

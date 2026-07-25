@@ -38,18 +38,90 @@ services:
       - ./grafana-datasource-override.yml:/etc/grafana/provisioning/datasources/datasource.yml
 
   nextjs-drives:
-    image: node:22-alpine
+    build:
+      context: ./nextjs-drives
+      dockerfile: Dockerfile
+    image: home-server-portal:local
     restart: always
-    working_dir: /app
     environment:
       - TESLAMATE_API_URL=http://teslamate:4000/api
       - NEXT_TELEMETRY_DISABLED=1
-    command: sh -c "npm install --no-package-lock && npm run dev -- -H 0.0.0.0"
+      - HOME_SERVER_SERVICES=${HOME_SERVER_SERVICES:-}
+      - AUTOMATION_DATA_DIR=/app/data
+      - HEALTH_CONNECT_DATA_DIR=/app/data/health-connect
+      - HEALTH_CONNECT_WEBHOOK_TOKEN=${HEALTH_CONNECT_WEBHOOK_TOKEN:-}
     ports:
       - 3001:3000
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - teslamate
     volumes:
-      - ./nextjs-drives:/app
-      - nextjs-drives-node-modules:/app/node_modules
+      - toggl-drive-automation:/app/data
+
+  toggl-drive-worker:
+    build:
+      context: ./nextjs-drives
+      dockerfile: Dockerfile
+    image: home-server-portal:local
+    restart: always
+    command: ["node", "worker/toggl-drive-worker.mjs"]
+    environment:
+      - TESLAMATE_API_URL=http://teslamate:4000/api
+      - AUTOMATION_DATA_DIR=/app/data
+      - TOGGL_API_TOKEN=${TOGGL_API_TOKEN:-}
+      - TOGGL_API_TOKEN_FILE=/run/secrets/toggl_api_key
+      - TOGGL_SYNC_INTERVAL_SECONDS=${TOGGL_SYNC_INTERVAL_SECONDS:-172800}
+      - TOGGL_MIN_OVERLAP_SECONDS=${TOGGL_MIN_OVERLAP_SECONDS:-60}
+      - CODEX_HOME=/home/nextjs/.codex
+      - CODEX_CLASSIFIER_MODEL=${CODEX_CLASSIFIER_MODEL:-gpt-5.6-luna}
+    depends_on:
+      - teslamate
+    volumes:
+      - toggl-drive-automation:/app/data
+      - "C:/Users/rongd/toggl_api_key.txt:/run/secrets/toggl_api_key:ro"
+      - "C:/Users/rongd/.codex/auth.json:/home/nextjs/.codex/auth.json:ro"
+
+  health-connect-backup:
+    image: rclone/rclone:1.74.4
+    restart: always
+    entrypoint: ["/bin/sh", "/scripts/health-connect-backup.sh"]
+    environment:
+      - HEALTH_BACKUP_CONFIG=/config/rclone/rclone.conf
+      - HEALTH_BACKUP_SOURCE=/data/health-connect
+      - "HEALTH_BACKUP_REMOTE=health-drive-crypt:"
+      - HEALTH_BACKUP_INTERVAL_SECONDS=${HEALTH_BACKUP_INTERVAL_SECONDS:-3600}
+    volumes:
+      - toggl-drive-automation:/data:ro
+      - ./.rclone:/config/rclone
+      - ./health-backup/health-connect-backup.sh:/scripts/health-connect-backup.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /tmp/health-backup-last-success"]
+      interval: 5m
+      timeout: 5s
+      retries: 3
+      start_period: 2m
+
+  teslamate-alerts:
+    build:
+      context: ./alerts
+    restart: always
+    environment:
+      - DATABASE_USER=neondb_owner
+      - DATABASE_PASS=${DATABASE_PASS:?Set DATABASE_PASS in .env}
+      - DATABASE_NAME=neondb
+      - DATABASE_HOST=ep-super-dawn-af3eu8d5-pooler.c-2.us-west-2.aws.neon.tech
+      - DATABASE_SSL_MODE=require
+      - TESLAMATE_URL=http://teslamate:4000
+      - CHECK_INTERVAL_SECONDS=300
+      - STALE_OPEN_DRIVE_MINUTES=15
+      - STALE_ONLINE_POSITION_MINUTES=180
+      - ALERT_REPEAT_SECONDS=3600
+      - ALERT_NTFY_URL=${ALERT_NTFY_URL:-}
+      - ALERT_WEBHOOK_URL=${ALERT_WEBHOOK_URL:-}
     depends_on:
       - teslamate
 
@@ -66,6 +138,6 @@ services:
 volumes:
   # teslamate-db:
   teslamate-grafana-data:
-  nextjs-drives-node-modules:
   mosquitto-conf:
   mosquitto-data:
+  toggl-drive-automation:
