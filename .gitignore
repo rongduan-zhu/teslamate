@@ -46,6 +46,13 @@ npm-debug.log
 /config/*.secret.exs
 config/*.env
 .env
+.env.*
+!.env.example
+!**/.env.example
+.ngrok/
+.rclone/
+/backups/
+/nul
 
 /import/
 .srtm_cache/

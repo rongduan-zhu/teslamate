@@ -6,10 +6,10 @@ services:
       target: builder
     restart: unless-stopped
     environment:
-      - ENCRYPTION_KEY=MQwgm91uuWkoUYkt6+lwRKf2wiFmpED326+NVwlaI4Y=
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env}
       # Neon PostgreSQL configuration - UPDATE THESE VALUES with your Neon credentials
       - DATABASE_USER=YOUR_NEON_USER
-      - DATABASE_PASS=YOUR_NEON_PASSWORD
+      - DATABASE_PASS=${DATABASE_PASS:?Set DATABASE_PASS in .env}
       - DATABASE_NAME=YOUR_NEON_DATABASE
       - DATABASE_HOST=YOUR_NEON_HOST.neon.tech
       - DATABASE_PORT=5432
@@ -41,7 +41,7 @@ services:
   #   restart: unless-stopped
   #   environment:
   #     - POSTGRES_USER=teslamate
-  #     - POSTGRES_PASSWORD=J_\+8ot264M2
+  #     - POSTGRES_PASSWORD=${DATABASE_PASS:?Set DATABASE_PASS in .env}
   #     - POSTGRES_DB=teslamate
   #   volumes:
   #     - teslamate-db:/var/lib/postgresql/data
@@ -54,7 +54,7 @@ services:
     environment:
       # Neon PostgreSQL configuration - UPDATE THESE VALUES with your Neon credentials
       - DATABASE_USER=YOUR_NEON_USER
-      - DATABASE_PASS=YOUR_NEON_PASSWORD
+      - DATABASE_PASS=${DATABASE_PASS:?Set DATABASE_PASS in .env}
       - DATABASE_NAME=YOUR_NEON_DATABASE
       - DATABASE_HOST=YOUR_NEON_HOST.neon.tech
       - DATABASE_PORT=5432

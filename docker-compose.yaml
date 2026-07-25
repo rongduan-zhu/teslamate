@@ -6,9 +6,9 @@ services:
     image: teslamate/teslamate:local
     restart: always
     environment:
-      - ENCRYPTION_KEY=MQwgm91uuWkoUYkt6+lwRKf2wiFmpED326+NVwlaI4Y=
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env}
       - DATABASE_USER=neondb_owner
-      - DATABASE_PASS=npg_3beDsc7inJHx
+      - DATABASE_PASS=${DATABASE_PASS:?Set DATABASE_PASS in .env}
       - DATABASE_NAME=neondb
       - DATABASE_HOST=ep-super-dawn-af3eu8d5-pooler.c-2.us-west-2.aws.neon.tech
       - DATABASE_SSL=noverify
@@ -26,7 +26,7 @@ services:
     restart: always
     environment:
       - DATABASE_USER=neondb_owner
-      - DATABASE_PASS=npg_3beDsc7inJHx
+      - DATABASE_PASS=${DATABASE_PASS:?Set DATABASE_PASS in .env}
       - DATABASE_NAME=neondb
       - DATABASE_HOST=ep-super-dawn-af3eu8d5-pooler.c-2.us-west-2.aws.neon.tech
       - DATABASE_SSL_MODE=require
