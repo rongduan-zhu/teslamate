@@ -25,6 +25,7 @@ services:
     image: teslamate/grafana:latest
     restart: always
     environment:
+      - GF_SECURITY_SECRET_KEY=${GF_SECURITY_SECRET_KEY:?Set GF_SECURITY_SECRET_KEY in .env}
       - DATABASE_USER=neondb_owner
       - DATABASE_PASS=${DATABASE_PASS:?Set DATABASE_PASS in .env}
       - DATABASE_NAME=neondb
