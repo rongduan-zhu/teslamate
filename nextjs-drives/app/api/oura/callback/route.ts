@@ -1,11 +1,13 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { consumeOAuthState, exchangeAuthorizationCode } from "@/lib/oura";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   const error = request.nextUrl.searchParams.get("error");
   const code = request.nextUrl.searchParams.get("code");
+  const state = request.nextUrl.searchParams.get("state");
 
   if (error) {
     return new NextResponse(
@@ -14,20 +16,32 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (!code) {
+  if (!code || !state) {
     return new NextResponse(
       renderPage("Oura callback is ready", "No authorization response was supplied."),
       { headers: { "content-type": "text/html; charset=utf-8" } }
     );
   }
 
-  return new NextResponse(
-    renderPage(
-      "Oura authorization received",
-      "The secure token exchange will be enabled after the application credentials are installed."
-    ),
-    { status: 503, headers: { "content-type": "text/html; charset=utf-8" } }
-  );
+  try {
+    await consumeOAuthState(state);
+    await exchangeAuthorizationCode(code);
+    return new NextResponse(
+      renderPage(
+        "Oura is connected",
+        "Authorization completed successfully. You can close this window."
+      ),
+      { headers: { "content-type": "text/html; charset=utf-8" } }
+    );
+  } catch {
+    return new NextResponse(
+      renderPage(
+        "Oura authorization failed",
+        "The response could not be verified or exchanged. Return to local setup and try again."
+      ),
+      { status: 400, headers: { "content-type": "text/html; charset=utf-8" } }
+    );
+  }
 }
 
 function renderPage(title: string, message: string) {

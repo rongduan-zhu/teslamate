@@ -98,13 +98,37 @@ path; all other portal requests still require an approved Google identity. HC
 Webhook does not support a custom authentication header, so the token is part of
 the configured URL. Keep the token private and rotate it if it is exposed.
 
+## Direct Oura archive
+
+Open `http://localhost:3001/oura/setup` on the server computer to install the
+Oura developer client ID and secret. The configuration and authorization
+endpoints reject non-local hosts. Credentials, OAuth state, and access/refresh
+tokens are encrypted with AES-256-GCM under `/app/data/oura/private`; the
+encryption key and encrypted files are created with owner-only permissions.
+
+The callback exchanges the short-lived authorization code without logging token
+responses. Tokens refresh automatically before expiry. The `oura-sync-worker`
+runs every six hours by default, with a 14-day overlap for daily collections and
+a two-day overlap for heart-rate samples. Initial history covers one year for
+daily collections and 30 days for heart rate. Raw immutable snapshots are stored
+under `/app/data/oura/records`; status responses and worker logs expose only
+timestamps and record counts.
+
+Override the sync interval in the root `.env` if needed:
+
+```dotenv
+OURA_SYNC_INTERVAL_SECONDS=21600
+```
+
 ### Encrypted Google Drive backup
 
 The `health-connect-backup` service mounts the shared data volume read-only and
-uses `rclone copy` to append new JSON batches to the encrypted
-`health-drive-crypt:` remote once per hour. Copy mode does not propagate local
-deletions to Google Drive, and `--immutable` prevents an existing cloud object
-from being overwritten with different content.
+uses `rclone copy` to append Health Connect batches to `health-drive-crypt:` and
+Oura record snapshots to `health-drive-crypt:oura` once per hour. The Oura
+`private` directory is deliberately excluded, so developer credentials, tokens,
+and the local encryption key are never uploaded by this service. Copy mode does
+not propagate local deletions to Google Drive, and `--immutable` prevents an
+existing cloud object from being overwritten with different content.
 
 The ignored `.rclone/rclone.conf` file contains the Google OAuth refresh token and
 the obscured keys used by the crypt remote. Keep this file private and back up its

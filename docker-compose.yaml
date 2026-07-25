@@ -86,13 +86,24 @@ services:
       - "C:/Users/rongd/toggl_api_key.txt:/run/secrets/toggl_api_key:ro"
       - "C:/Users/rongd/.codex/auth.json:/home/nextjs/.codex/auth.json:ro"
 
+  oura-sync-worker:
+    image: home-server-portal:local
+    restart: always
+    command: ["node", "worker/oura-sync-worker.mjs"]
+    environment:
+      - OURA_SYNC_URL=http://nextjs-drives:3000/api/oura/sync
+      - OURA_SYNC_INTERVAL_SECONDS=${OURA_SYNC_INTERVAL_SECONDS:-21600}
+    depends_on:
+      - nextjs-drives
+    volumes:
+      - toggl-drive-automation:/app/data
+
   health-connect-backup:
     image: rclone/rclone:1.74.4
     restart: always
     entrypoint: ["/bin/sh", "/scripts/health-connect-backup.sh"]
     environment:
       - HEALTH_BACKUP_CONFIG=/config/rclone/rclone.conf
-      - HEALTH_BACKUP_SOURCE=/data/health-connect
       - "HEALTH_BACKUP_REMOTE=health-drive-crypt:"
       - HEALTH_BACKUP_INTERVAL_SECONDS=${HEALTH_BACKUP_INTERVAL_SECONDS:-3600}
     volumes:

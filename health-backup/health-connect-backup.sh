@@ -2,7 +2,8 @@
 set -u
 
 config="${HEALTH_BACKUP_CONFIG:-/config/rclone/rclone.conf}"
-source_dir="${HEALTH_BACKUP_SOURCE:-/data/health-connect}"
+health_connect_source="${HEALTH_BACKUP_SOURCE:-/data/health-connect}"
+oura_source="${OURA_BACKUP_SOURCE:-/data/oura/records}"
 remote="${HEALTH_BACKUP_REMOTE:-health-drive-crypt:}"
 interval="${HEALTH_BACKUP_INTERVAL_SECONDS:-3600}"
 success_marker="/tmp/health-backup-last-success"
@@ -28,13 +29,20 @@ run_backup() {
     return 1
   fi
 
-  if rclone copy "$source_dir" "$remote" \
+  if rclone copy "$health_connect_source" "$remote" \
     --config "$config" \
     --include "*.json" \
     --immutable \
     --checkers 4 \
     --transfers 2 \
-    --log-level INFO; then
+    --log-level INFO &&
+    { [ ! -d "$oura_source" ] || rclone copy "$oura_source" "${remote%:}:oura" \
+      --config "$config" \
+      --include "*.json" \
+      --immutable \
+      --checkers 4 \
+      --transfers 2 \
+      --log-level INFO; }; then
     date -u +"%Y-%m-%dT%H:%M:%SZ" > "$success_marker"
     echo "Health backup completed successfully."
     return 0
